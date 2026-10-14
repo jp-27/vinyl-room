@@ -371,9 +371,18 @@ html,body{overscroll-behavior:none;-webkit-tap-highlight-color:transparent;touch
 .cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(280px,100%),1fr));gap:12px 36px;align-items:start}
 .bg-form{display:flex;gap:8px}
 .bg-form input{flex:1;min-width:0}
-.bg-prev{display:flex;gap:10px;overflow-x:auto;padding:12px 0 4px}
-.bg-prev button{flex:0 0 92px;height:56px;border-radius:6px;background:#1a1a1a center/cover no-repeat;border:1px solid rgba(255,255,255,.1)}
-.bg-prev button.on{box-shadow:0 0 0 2px var(--booth-ink)}
+.bg-saved{display:grid;grid-template-columns:repeat(auto-fill,minmax(104px,1fr));gap:10px;padding:4px 0 6px}
+.bg-tile{position:relative;aspect-ratio:16/10;border-radius:8px;overflow:hidden}
+.bg-tile>button.use{position:absolute;inset:0;width:100%;height:100%;background:#1a1a1a center/cover no-repeat;border:1px solid rgba(255,255,255,.1);border-radius:8px}
+.bg-tile.on>button.use{box-shadow:inset 0 0 0 2px var(--booth-ink)}
+.bg-tile.def>button.use{display:grid;place-items:end start;padding:8px 9px;font:500 12px/1 var(--f-display);color:var(--booth-ink);text-align:left;
+  background:radial-gradient(120% 120% at 20% 10%,rgba(var(--tint),.55),transparent 60%),linear-gradient(135deg,#1c1c1c,#0b0b0b)}
+.bg-tile .del{position:absolute;top:5px;right:5px;width:24px;height:24px;border-radius:50%;display:grid;place-items:center;background:rgba(0,0,0,.6);color:#fff;opacity:.85}
+.bg-tile .del:hover{opacity:1;background:rgba(0,0,0,.85)}
+.bg-tile .del svg{width:12px;height:12px}
+.bg-tile .tick{position:absolute;left:6px;top:6px;width:20px;height:20px;border-radius:50%;background:var(--booth-ink);color:#0b0b0b;display:none;place-items:center}
+.bg-tile.on .tick{display:grid}
+.bg-tile .tick svg{width:12px;height:12px}
 .seg{display:inline-flex;border:1px solid rgba(255,255,255,.12);border-radius:99px;padding:3px}
 .seg button{padding:8px 13px;border-radius:99px;font:500 12.5px/1 var(--f-display);color:var(--booth-dim)}
 .seg button[aria-pressed="true"]{background:rgba(255,255,255,.12);color:var(--booth-ink)}
@@ -591,14 +600,19 @@ html,body{overscroll-behavior:none;-webkit-tap-highlight-color:transparent;touch
           <h3>Background image or GIF</h3>
           <form class="bg-form" id="bgForm"><input id="bgUrl" type="url" inputmode="url" placeholder="Paste an image or GIF link" autocomplete="off" spellcheck="false" aria-label="Image or GIF link"><button class="btn small" type="submit">Apply</button></form>
           <div class="status" style="margin-top:8px">Use a direct link to the file (ends in .jpg, .png, .gif or .webp). On Giphy or Tenor, long-press the GIF and copy the image address.</div>
-          <div class="bg-prev" id="bgRecent"></div>
+
+        </div>
+        <div>
+          <h3>Saved backgrounds</h3>
+          <div class="bg-saved" id="bgSaved"></div>
+          <div class="status" style="margin-top:6px">Every background you apply is saved here. Tap one to use it, or ✕ to remove it.</div>
         </div>
         <div>
           <h3>Show it on</h3>
           <div class="seg" id="bgWhere"><button data-w="both" aria-pressed="true">Both</button><button data-w="album" aria-pressed="false">Sleeve</button><button data-w="room" aria-pressed="false">Turntable</button></div>
           <div class="range"><label for="bgDim">Darken</label><input id="bgDim" type="range" min="0" max="85" value="35"><output id="bgDimOut">35%</output></div>
           <div class="range"><label for="bgBlur">Blur</label><input id="bgBlur" type="range" min="0" max="40" value="0"><output id="bgBlurOut">0</output></div>
-          <button class="btn" id="bgReset" style="margin-top:16px">Use album colours</button>
+          <button class="btn" id="bgReset" style="margin-top:16px">Back to default</button>
         </div>
       </div>
     </div>
@@ -1188,32 +1202,51 @@ function fitStage(){
 }
 
 /* ================= flying record ================= */
+/* The flying copy must match the real record exactly at hand-off: same centre, same untransformed
+   diameter (bounding boxes of rotated squares are bigger, which caused the size pop), same element
+   angle (so the sheen lines up) and same spin angle of the grooves/label (set via the CSS spin
+   animation's clock). */
 const flyer = $('#flyer');
-const TILT = Math.abs(Math.cos(3*Math.PI/180)) + Math.abs(Math.sin(3*Math.PI/180));
-function circleOf(el, tilted){
-  const r = el.getBoundingClientRect(); const w = tilted ? r.width / TILT : r.width;
-  return { cx:r.left + r.width/2, cy:r.top + r.height/2, d:w };
+function angleOf(el){ try { const t = getComputedStyle(el).transform; if (!t || t === 'none') return 0; const m = new DOMMatrix(t); return Math.atan2(m.b, m.a) * 180 / Math.PI; } catch { return 0; } }
+function geom(el){
+  const r = el.getBoundingClientRect(); let sc = 1, a = 0;
+  for (let n = el; n && n !== document.documentElement; n = n.parentElement){
+    const t = getComputedStyle(n).transform;
+    if (t && t !== 'none'){ const m = new DOMMatrix(t); sc *= Math.hypot(m.a, m.b); a += Math.atan2(m.b, m.a) * 180 / Math.PI; }
+  }
+  return { cx:r.left + r.width/2, cy:r.top + r.height/2, d:el.offsetWidth * sc, a };
 }
+const discOf = el => el.querySelector('.disc');
+function discAngle(el){ return angleOf(discOf(el)); }
+function setDiscAngle(el, deg){
+  const an = discOf(el).getAnimations().find(x => x.animationName === 'spin') || discOf(el).getAnimations()[0];
+  if (!an) return;
+  const D = +an.effect.getTiming().duration || 1800;
+  an.currentTime = (((deg % 360) + 360) % 360) / 360 * D;
+}
+const near = (from, target) => from + ((((target - from) % 360) + 540) % 360) - 180;   // target angle closest to `from`
 function placeFlyer(c, rot = 0, op = 1){
-  flyer.getAnimations().forEach(a => a.cancel());
+  flyer.getAnimations().forEach(x => x.cancel());
   Object.assign(flyer.style, { left:(c.cx - c.d/2)+'px', top:(c.cy - c.d/2)+'px', width:c.d+'px', height:c.d+'px', transform:`rotate(${rot}deg)`, opacity:op });
   flyer.hidden = false;
 }
-function fly(from, to, { dur = 900, easing = 'cubic-bezier(.65,0,.2,1)', rot0 = 0, rot = 360, op0 = 1, op1 = 1, lift = 0 } = {}){
+function fly(from, to, { dur = 900, easing = 'cubic-bezier(.65,0,.2,1)', rot0 = 0, rot = 0, op0 = 1, op1 = 1, lift = 0 } = {}){
   const f = c => ({ left:(c.cx-c.d/2)+'px', top:(c.cy-c.d/2)+'px', width:c.d+'px', height:c.d+'px' });
-  const mid = { cx:(from.cx+to.cx)/2, cy:(from.cy+to.cy)/2 - lift, d:Math.max(from.d, to.d) * (lift ? 1.08 : 1) };
+  const mid = { cx:(from.cx+to.cx)/2, cy:(from.cy+to.cy)/2 - lift, d:from.d + (to.d - from.d) * .5 };
   const frames = [
     { ...f(from), transform:`rotate(${rot0}deg)`, opacity:op0 },
-    ...(lift ? [{ ...f(mid), transform:`rotate(${(rot0+rot)/2}deg)`, opacity:(op0+op1)/2, offset:.55 }] : []),
+    ...(lift ? [{ ...f(mid), transform:`rotate(${(rot0+rot)/2}deg)`, opacity:(op0+op1)/2, offset:.5 }] : []),
     { ...f(to), transform:`rotate(${rot}deg)`, opacity:op1 },
   ];
   flyer.hidden = false;
-  const a = flyer.animate(frames, { duration:dur, easing, fill:'forwards' });
-  return a.finished.catch(() => {});
+  const an = flyer.animate(frames, { duration:dur, easing, fill:'forwards' });
+  return an.finished.catch(() => {});
 }
+// copy the real record's spin angle onto the flyer (or back)
+function pickUp(el){ const g = geom(el); placeFlyer(g, g.a); setDiscAngle(flyer, discAngle(el)); return g; }
+function setDown(el){ setDiscAngle(el, discAngle(flyer)); }
 function setViewState(v){ S.view = v; app.dataset.view = v; }
 
-function angleOf(el){ try { const m = new DOMMatrix(getComputedStyle(el).transform); return Math.atan2(m.b, m.a) * 180 / Math.PI; } catch { return 0; } }
 function sleeveProxy(){
   const r = $('#sleeveBtn').getBoundingClientRect();
   const p = document.createElement('div'); p.className = 'sleeve-proxy';
@@ -1222,23 +1255,23 @@ function sleeveProxy(){
   app.appendChild(p); return { el:p, rect:r };
 }
 
-/* album -> player: the record slides all the way out of the sleeve, floats to the centre,
-   rings while the track loads, then the room's colour blooms outward from the disc */
+/* album -> player: the record slides straight out of the sleeve at its own size, floats to the
+   centre, rings while the track loads, then the room's colour blooms outward from the disc */
 async function enterPlayer(idx = 0, startPlayback = true){
   if (S.busy || !S.album) return; S.busy = true;
   closeDrawer(); closeTracklist();
   const vinylEl = $('#albumVinyl'), av = $('#albumView');
-  const from = circleOf(vinylEl), a0 = angleOf(vinylEl);
   const sp = sleeveProxy();
-  placeFlyer(from, a0); vinylEl.style.visibility = 'hidden';
+  const from = pickUp(vinylEl); vinylEl.style.visibility = 'hidden';
   av.classList.add('launching');
   const out = { cx: sp.rect.right + from.d * .5 + Math.max(10, from.d * .04), cy: from.cy, d: from.d };
-  await fly(from, out, { dur:620, rot0:a0, rot:a0 + 70, easing:'cubic-bezier(.3,0,.15,1)' });
+  let r = from.a;
+  await fly(from, out, { dur:700, rot0:r, rot:r + 40, easing:'cubic-bezier(.45,.05,.2,1)' }); r += 40;
   setViewState('launch');
-  sp.el.animate([{ opacity:1, transform:'none' }, { opacity:0, transform:'translateX(-4%) scale(.98)' }], { duration:700, easing:'ease', fill:'forwards' })
+  sp.el.animate([{ opacity:1 }, { opacity:0 }], { duration:700, easing:'ease', fill:'forwards' })
     .finished.then(() => sp.el.remove()).catch(() => sp.el.remove());
   const center = { cx:innerWidth/2, cy:innerHeight/2, d:Math.min(innerWidth, innerHeight) * .3 };
-  await fly(out, center, { dur:950, rot0:a0 + 70, rot:a0 + 430, easing:'cubic-bezier(.6,0,.2,1)', lift:20 });
+  await fly(out, center, { dur:1000, rot0:r, rot:r + 320, easing:'cubic-bezier(.55,0,.2,1)' }); r += 320;
   flyer.classList.add('ringing');
   renderRail(); renderShelf(); S.armUp = true;
   const started = startPlayback ? Ctl.playIndex(idx) : Promise.resolve(true);
@@ -1252,32 +1285,38 @@ async function enterPlayer(idx = 0, startPlayback = true){
     [{ clipPath:`circle(${center.d/2}px at ${center.cx}px ${center.cy}px)` }, { clipPath:`circle(${R}px at ${center.cx}px ${center.cy}px)` }],
     { duration:1150, easing:'cubic-bezier(.65,0,.25,1)' });
   await wait(380);
-  const to = circleOf($('#deckVinyl'), true);
-  await fly(center, to, { dur:1050, rot0:a0 + 430, rot:a0 + 720, lift:40, easing:'cubic-bezier(.45,0,.15,1)' });
+  const deck = $('#deckVinyl'), to = geom(deck);
+  const end = near(r + 300, to.a);
+  await fly(center, to, { dur:1050, rot0:r, rot:end, lift:30, easing:'cubic-bezier(.45,0,.15,1)' });
+  setDown(deck);
+  deck.classList.remove('away'); flyer.hidden = true;
   await bloom.finished.catch(() => {});
   app.classList.remove('reveal'); av.classList.remove('launching');
-  $('#deckVinyl').classList.remove('away'); flyer.hidden = true; vinylEl.style.visibility = '';
+  vinylEl.style.visibility = '';
   await wait(250); S.armUp = false; S.busy = false; syncPP();
 }
 
-/* player -> album: the record lifts off, lands beside the sleeve and slides back inside it */
+/* player -> album: the record lifts off, lands beside the sleeve and slides straight back in */
 async function leaveToAlbum(){
   if (S.busy || S.view !== 'player') return; S.busy = true;
   closeDrawer(); closeTracklist(); hideScrub(true);
   S.armUp = true; await wait(700);
-  const from = circleOf($('#deckVinyl'), true);
-  placeFlyer(from); $('#deckVinyl').classList.add('away');
+  const deck = $('#deckVinyl');
+  const from = pickUp(deck); deck.classList.add('away');
   $('#albumView').classList.add('launching');
   setViewState('album');
   renderStrip();
   const vinylEl = $('#albumVinyl'); vinylEl.style.visibility = 'hidden';
   await wait(60);
-  const rest = circleOf(vinylEl), a1 = angleOf(vinylEl);
+  const rest = geom(vinylEl);
   const sp = sleeveProxy();
   sp.el.animate([{ opacity:0 }, { opacity:1 }], { duration:800, easing:'ease', fill:'forwards' });
   const out = { cx: sp.rect.right + rest.d * .5 + Math.max(10, rest.d * .04), cy: rest.cy, d: rest.d };
-  await fly(from, out, { dur:1000, rot0:0, rot:-300, lift:36, easing:'cubic-bezier(.5,0,.2,1)' });
-  await fly(out, rest, { dur:720, rot0:-300, rot:a1 - 360, easing:'cubic-bezier(.25,.8,.25,1)' });
+  const endR = near(from.a - 360, rest.a);              // one gentle turn, finishing at the resting angle
+  const midR = endR + 40;
+  await fly(from, out, { dur:1050, rot0:from.a, rot:midR, lift:30, easing:'cubic-bezier(.5,0,.2,1)' });
+  await fly(out, rest, { dur:750, rot0:midR, rot:endR, easing:'cubic-bezier(.3,.6,.2,1)' });   // same size: a pure slide
+  setDown(vinylEl);
   vinylEl.style.visibility = ''; flyer.hidden = true; sp.el.remove();
   $('#albumView').classList.remove('launching'); S.busy = false;
 }
@@ -1287,15 +1326,15 @@ async function swapRecord(al, originEl, idx = 0, play = true){
   if (S.busy) return; S.busy = true;
   await ensureTracks(al);
   S.armUp = true; await wait(play ? 650 : 400);
-  const from = circleOf($('#deckVinyl'), true);
-  const out = originEl ? circleOf(originEl.querySelector('.sh-disc') || originEl) : { cx:from.cx, cy:-from.d, d:from.d*.8 };
-  placeFlyer(from); $('#deckVinyl').classList.add('away');
-  await fly(from, out, { dur:700, rot:-200, op1:.0, easing:'cubic-bezier(.6,0,.4,1)' });
+  const deck = $('#deckVinyl');
+  const from = pickUp(deck); deck.classList.add('away');
+  const out = originEl ? geom(originEl.querySelector('.sh-disc') || originEl) : { cx:from.cx, cy:-from.d, d:from.d };
+  await fly(from, out, { dur:700, rot0:from.a, rot:from.a - 200, op1:0, easing:'cubic-bezier(.6,0,.4,1)' });
   await setAlbum(al);
   if (idx >= 0) setCurrent(idx);
-  const back = originEl ? out : { cx:from.cx, cy:-from.d, d:from.d*.8 };
-  await fly({ ...back }, from, { dur:900, rot0:-200, rot:0, op0:.0, op1:1, lift:30 });
-  $('#deckVinyl').classList.remove('away'); flyer.hidden = true;
+  await fly({ ...out }, from, { dur:900, rot0:from.a - 200, rot:from.a, op0:0, op1:1, lift:30 });
+  setDown(deck);
+  deck.classList.remove('away'); flyer.hidden = true;
   if (play) await Ctl.playIndex(idx >= 0 ? idx : 0);
   await wait(200); S.armUp = false; S.busy = false;
 }
@@ -1522,7 +1561,9 @@ function renderLib(){
 
 /* ---- custom background ---- */
 const BG = (() => { try { return JSON.parse(store.get('vr.bg') || 'null') || {}; } catch { return {}; } })();
-BG.where ||= 'both'; BG.dim ??= 35; BG.blur ??= 0; BG.recent ||= [];
+BG.where ||= 'both'; BG.dim ??= 35; BG.blur ??= 0;
+BG.saved ||= (BG.recent || []).slice(); delete BG.recent;
+if (BG.url && !BG.saved.includes(BG.url)) BG.saved.unshift(BG.url);
 function saveBg(){ store.set('vr.bg', JSON.stringify(BG)); }
 function applyBg(){
   const on = !!BG.url, st = app.style;
@@ -1536,13 +1577,17 @@ function renderBgUI(){
   document.querySelectorAll('#bgWhere button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.w === BG.where)));
   $('#bgDim').value = BG.dim; $('#bgDimOut').textContent = BG.dim + '%';
   $('#bgBlur').value = BG.blur; $('#bgBlurOut').textContent = BG.blur;
-  $('#bgRecent').innerHTML = BG.recent.map((u, i) => `<button type="button" data-i="${i}" class="${u === BG.url ? 'on' : ''}" style="background-image:${esc(cssUrl(u))}" aria-label="Use this background again"></button>`).join('');
+  const TICK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M5 12l5 5 9-10"/></svg>';
+  const X = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="M6 6l12 12M18 6L6 18"/></svg>';
+  $('#bgSaved').innerHTML =
+    `<div class="bg-tile def${BG.url ? '' : ' on'}"><button type="button" class="use" data-act="default" aria-label="Use the default album colours">Default</button><span class="tick">${TICK}</span></div>` +
+    BG.saved.map((u, i) => `<div class="bg-tile${u === BG.url ? ' on' : ''}"><button type="button" class="use" data-act="use" data-i="${i}" style="background-image:${esc(cssUrl(u))}" aria-label="Use this background"></button><span class="tick">${TICK}</span><button type="button" class="del" data-act="del" data-i="${i}" aria-label="Remove this background">${X}</button></div>`).join('');
 }
 function setBgUrl(u){
   u = (u || '').trim();
   if (!/^https?:\/\//i.test(u)){ toast('Paste a full link that starts with https://'); return; }
   const img = new Image();
-  img.onload = () => { BG.url = u; BG.recent = [u, ...BG.recent.filter(x => x !== u)].slice(0, 8); saveBg(); applyBg(); renderBgUI(); toast('Background updated.'); };
+  img.onload = () => { const isNew = !BG.saved.includes(u); BG.url = u; BG.saved = [u, ...BG.saved.filter(x => x !== u)].slice(0, 40); saveBg(); applyBg(); renderBgUI(); toast(isNew ? 'Background saved and applied.' : 'Background applied.'); };
   img.onerror = () => toast("That link didn't load as an image. Use the direct file link, ending in .jpg, .png, .gif or .webp.", 6000);
   img.src = u;
 }
@@ -1634,11 +1679,18 @@ function bind(){
   $('#libChips').onclick = e => { const c = e.target.closest('.chip'); if (c){ LIB.tab = c.dataset.lib; loadLib(); } };
   $('#bgForm').onsubmit = e => { e.preventDefault(); setBgUrl($('#bgUrl').value); };
   $('#bgUrl').addEventListener('paste', () => setTimeout(() => { const v = $('#bgUrl').value.trim(); if (/^https?:\/\//i.test(v)) setBgUrl(v); }, 0));
-  $('#bgRecent').onclick = e => { const b = e.target.closest('button'); if (b){ BG.url = BG.recent[+b.dataset.i]; saveBg(); applyBg(); renderBgUI(); } };
+  $('#bgSaved').onclick = e => {
+    const b = e.target.closest('button[data-act]'); if (!b) return;
+    const act = b.dataset.act, u = BG.saved[+b.dataset.i];
+    if (act === 'default') BG.url = '';
+    else if (act === 'use') BG.url = u;
+    else if (act === 'del'){ BG.saved = BG.saved.filter(x => x !== u); if (BG.url === u) BG.url = ''; toast('Background removed.'); }
+    saveBg(); applyBg(); renderBgUI();
+  };
   $('#bgWhere').onclick = e => { const b = e.target.closest('button'); if (b){ BG.where = b.dataset.w; saveBg(); applyBg(); renderBgUI(); } };
   $('#bgDim').oninput = e => { BG.dim = +e.target.value; $('#bgDimOut').textContent = BG.dim + '%'; applyBg(); saveBg(); };
   $('#bgBlur').oninput = e => { BG.blur = +e.target.value; $('#bgBlurOut').textContent = BG.blur; applyBg(); saveBg(); };
-  $('#bgReset').onclick = () => { BG.url = ''; saveBg(); applyBg(); renderBgUI(); toast('Back to the album colours.'); };
+  $('#bgReset').onclick = () => { BG.url = ''; BG.dim = 35; BG.blur = 0; BG.where = 'both'; saveBg(); applyBg(); renderBgUI(); toast('Back to the default album colours. Your saved backgrounds are still here.'); };
   bindScrub(); applyBg();
   $('#connectBtn').onclick = login;
   $('#logoutBtn').onclick = logout;
