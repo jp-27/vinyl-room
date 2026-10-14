@@ -9,6 +9,9 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Vinyl Room">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" type="image/png" href="icon-192.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Grenze+Gotisch:wght@500;700&family=Saira+Semi+Condensed:wght@400;500;600&family=Archivo:wght@400;600;700&display=swap" rel="stylesheet">
@@ -52,6 +55,7 @@ body{font:400 14px/1.4 var(--f-ui);-webkit-font-smoothing:antialiased}
 button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:pointer}
 button:focus-visible,input:focus-visible,a:focus-visible{outline:2px solid currentColor;outline-offset:3px;border-radius:4px}
 [hidden]{display:none!important}
+@media (display-mode:standalone){.topbar{padding-top:calc(env(safe-area-inset-top,0px) + 10px)}.back-btn,.conn-pill{top:calc(env(safe-area-inset-top,0px) + 12px)}}
 #app.notrans{transition:none!important}
 img{display:block;max-width:100%}
 
@@ -277,6 +281,7 @@ html,body{overscroll-behavior:none;-webkit-tap-highlight-color:transparent;touch
   .transport{left:197px;top:1012px}
   .album-info{max-width:none}
   .upnext{bottom:calc(env(safe-area-inset-bottom,0px) + 20px)}
+  #app[data-view="player"] .menu-btn{opacity:0;pointer-events:none}
 }
 /* phone booth */
 @media (max-width:760px){
