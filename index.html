@@ -149,7 +149,7 @@ html,body{overscroll-behavior:none;-webkit-tap-highlight-color:transparent;touch
     radial-gradient(circle closest-side,transparent 0 35.5%,rgba(0,0,0,.22) 36% 36.6%,transparent 37.2% 56%,rgba(0,0,0,.12) 56.3% 56.8%,transparent 57% 71%,rgba(0,0,0,.12) 71.3% 71.7%,transparent 72% 85%,rgba(0,0,0,.1) 85.3% 85.7%,transparent 86% 97.4%,rgba(255,255,255,.18) 98%,rgba(0,0,0,.25) 99.3%),
     repeating-radial-gradient(circle closest-side,transparent 0 1.6px,var(--groove) 1.6px 2.2px),
     radial-gradient(circle closest-side,var(--vinyl) 0 55%,var(--vinyl-edge) 100%);
-  box-shadow:0 18px 40px -12px rgba(0,0,0,.55)}
+  box-shadow:0 0 34px -4px rgba(0,0,0,.5),0 0 0 1px rgba(0,0,0,.06)}
 .vinyl .label{position:absolute;inset:33.5%;border-radius:50%;background:#111 var(--label) center/cover no-repeat;
   box-shadow:0 0 0 1.5px rgba(0,0,0,.35),inset 0 0 0 3px rgba(255,255,255,.06);transition:transform .6s var(--ease)}
 .vinyl .label::after{content:"";position:absolute;inset:45.5%;border-radius:50%;background:var(--booth);box-shadow:inset 0 1px 2px rgba(0,0,0,.6)}
@@ -422,7 +422,11 @@ html,body{overscroll-behavior:none;-webkit-tap-highlight-color:transparent;touch
 
 .sleeve-proxy{position:fixed;z-index:62;pointer-events:none;box-shadow:0 30px 60px -20px rgba(0,0,0,.8),0 0 0 1px rgba(255,255,255,.04)}
 .sleeve-proxy img{width:100%;height:100%;object-fit:cover}
+@property --bloom{syntax:'<length>';inherits:true;initial-value:0px}
 #app.reveal #playerView{transition:none!important;opacity:1;visibility:visible}
+#app.reveal.soft #playerView{
+  -webkit-mask-image:radial-gradient(circle at var(--bx) var(--by),#000 0,#000 calc(var(--bloom) - var(--feather)),transparent var(--bloom));
+          mask-image:radial-gradient(circle at var(--bx) var(--by),#000 0,#000 calc(var(--bloom) - var(--feather)),transparent var(--bloom))}
 #albumView.launching .album-info,#albumView.launching .strip,#albumView.launching .ghost{opacity:0;transition:opacity .45s}
 
 /* scrubber */
@@ -713,40 +717,63 @@ const hsl = (h,s,l) => `hsl(${(h*360).toFixed(1)} ${(s*100).toFixed(1)}% ${(l*10
 const clamp = (v,a,b) => Math.min(b, Math.max(a, v));
 
 const MONO = { light:true, rgb:[205,205,205], vinyl:'#e8e7e3', edge:'#cdcbc6', groove:'rgba(0,0,0,.055)', room:'#e9e8e4', ink:'#141414', slab:'#dad9d5', frame:'#121212', glow:'#ffffff' };
+const MONO_DARK = { light:false, rgb:[130,130,130], vinyl:'#1d1d1d', edge:'#0b0b0b', groove:'rgba(255,255,255,.05)', room:'#0d0d0d', ink:'#efece7', slab:'#191919', frame:'#060606', glow:'#9a9a9a' };
+
+// Load the cover for pixel reading. A plain <img> of the same URL may already be cached without
+// CORS headers, which makes a crossOrigin load fail on Safari; fetching a fresh CORS copy avoids that.
+async function loadCoverPixels(src){
+  if (!src) throw new Error('no cover');
+  if (!src.startsWith('data:')){
+    try {
+      const r = await fetch(src, { mode:'cors', cache:'no-store' });
+      if (r.ok){ const url = URL.createObjectURL(await r.blob()); try { return await loadImg(url); } finally { setTimeout(() => URL.revokeObjectURL(url), 4000); } }
+    } catch {}
+    try { return await loadImg(src + (src.includes('?') ? '&' : '?') + 'vr=1'); } catch {}
+  }
+  return loadImg(src);
+}
 
 async function extractPalette(src){
   try {
-    const img = await loadImg(src);
-    const N = 40, c = document.createElement('canvas'); c.width = c.height = N;
+    const img = await loadCoverPixels(src);
+    const N = 48, c = document.createElement('canvas'); c.width = c.height = N;
     const x = c.getContext('2d', { willReadFrequently:true }); x.drawImage(img, 0, 0, N, N);
     const d = x.getImageData(0, 0, N, N).data;
-    let chroma = 0, n = 0; const buckets = new Array(24).fill(0).map(() => ({ w:0, r:0, g:0, b:0 }));
+    const buckets = new Array(36).fill(0).map(() => ({ w:0, r:0, g:0, b:0, n:0 }));
+    let n = 0, lum = 0, colored = 0;
     for (let i = 0; i < d.length; i += 4){
-      const r=d[i], g=d[i+1], b=d[i+2]; const mx=Math.max(r,g,b), mn=Math.min(r,g,b);
-      const ch = (mx-mn)/255; chroma += ch; n++;
-      const [h,s,l] = rgb2hsl(r,g,b);
-      if (ch > .12 && l > .1 && l < .9){ const k = Math.floor(h*24)%24, w = ch*ch; const B = buckets[k]; B.w+=w; B.r+=r*w; B.g+=g*w; B.b+=b*w; }
+      const r=d[i], g=d[i+1], b=d[i+2]; n++;
+      const [h,s,l] = rgb2hsl(r,g,b); lum += l;
+      const ch = (Math.max(r,g,b) - Math.min(r,g,b)) / 255;
+      if (ch > .07 && l > .05 && l < .95){
+        if (ch > .12) colored++;
+        const w = Math.pow(ch, 1.4) * (1 - Math.abs(l - .5));      // favour vivid, mid-tone pixels
+        const B = buckets[Math.floor(h*36) % 36]; B.w += w; B.r += r*w; B.g += g*w; B.b += b*w; B.n++;
+      }
     }
-    chroma /= n;
-    // merge neighbouring hue buckets so a red that straddles 0° still wins
+    lum /= n;
     let best = -1, bw = 0;
-    for (let k = 0; k < 24; k++){ const w = buckets[k].w + .6*(buckets[(k+23)%24].w + buckets[(k+1)%24].w); if (w > bw){ bw = w; best = k; } }
-    if (chroma < .085 || best < 0 || buckets[best].w === 0) return { ...MONO };
+    for (let k = 0; k < 36; k++){ const w = buckets[k].w + .5*(buckets[(k+35)%36].w + buckets[(k+1)%36].w); if (w > bw){ bw = w; best = k; } }
+    // even a small patch of real colour on a dark cover counts (e.g. a red detail on black)
+    const hasColour = best >= 0 && buckets[best].n >= n * .015 && colored >= n * .02;
+    if (!hasColour) return lum > .5 ? { ...MONO } : { ...MONO_DARK };
     const B = buckets[best]; const rgb = [B.r/B.w, B.g/B.w, B.b/B.w].map(Math.round);
-    const [h,s] = rgb2hsl(...rgb);
-    const sv = clamp(s, .35, .7);
+    const [h, s] = rgb2hsl(...rgb);
+    const sv = clamp(s * 1.1, .35, .72);
     return {
       light:false, rgb,
-      vinyl: hsl(h, sv, .33), edge: hsl(h, sv*.8, .2), groove:'rgba(0,0,0,.2)',
-      room: hsl(h, clamp(s*.35,.12,.3), .065), ink:'#f1ece6',
+      vinyl: hsl(h, sv, .34), edge: hsl(h, sv*.8, .2), groove:'rgba(0,0,0,.2)',
+      room: hsl(h, clamp(s*.4, .14, .32), .07), ink:'#f1ece6',
       slab: hsl(h, .1, .13), frame: hsl(h, .12, .045), glow: hsl(h, sv, .55),
     };
-  } catch (e) { return { ...MONO }; }
+  } catch (e) { console.warn('palette', e); return null; }
 }
 
+if (location.hash === '#debug') window.__vr = { extractPalette };
 let atmoFlip = false;
 async function applyTheme(al){
-  const p = al.pal || (al.pal = await extractPalette(al.cover));
+  let p = al.pal;
+  if (!p){ p = await extractPalette(al.cover); if (p) al.pal = p; else p = { ...MONO_DARK }; }
   const st = app.style;
   st.setProperty('--tint', p.rgb.join(','));
   st.setProperty('--vinyl', p.vinyl); st.setProperty('--vinyl-edge', p.edge); st.setProperty('--groove', p.groove);
@@ -1281,9 +1308,17 @@ async function enterPlayer(idx = 0, startPlayback = true){
   // colour bloom: reveal the room as a circle growing out of the disc
   app.classList.add('reveal'); setViewState('player'); fitStage();
   const R = Math.hypot(Math.max(center.cx, innerWidth - center.cx), Math.max(center.cy, innerHeight - center.cy)) + 40;
-  const bloom = $('#playerView').animate(
-    [{ clipPath:`circle(${center.d/2}px at ${center.cx}px ${center.cy}px)` }, { clipPath:`circle(${R}px at ${center.cx}px ${center.cy}px)` }],
-    { duration:1150, easing:'cubic-bezier(.65,0,.25,1)' });
+  const pv = $('#playerView'), feather = Math.max(90, Math.min(innerWidth, innerHeight) * .28);
+  let bloom;
+  if (window.CSS && CSS.supports && CSS.supports('mask-image', 'radial-gradient(#000,transparent)') && 'registerProperty' in CSS){
+    // a soft, feathered glow that grows out of the disc
+    pv.style.setProperty('--bx', center.cx + 'px'); pv.style.setProperty('--by', center.cy + 'px'); pv.style.setProperty('--feather', feather + 'px');
+    app.classList.add('soft');
+    bloom = pv.animate([{ '--bloom': (center.d/2) + 'px' }, { '--bloom': (R + feather) + 'px' }], { duration:1400, easing:'cubic-bezier(.55,0,.3,1)' });
+  } else {
+    bloom = pv.animate([{ clipPath:`circle(${center.d/2}px at ${center.cx}px ${center.cy}px)` }, { clipPath:`circle(${R}px at ${center.cx}px ${center.cy}px)` }],
+      { duration:1150, easing:'cubic-bezier(.65,0,.25,1)' });
+  }
   await wait(380);
   const deck = $('#deckVinyl'), to = geom(deck);
   const end = near(r + 300, to.a);
@@ -1291,7 +1326,7 @@ async function enterPlayer(idx = 0, startPlayback = true){
   setDown(deck);
   deck.classList.remove('away'); flyer.hidden = true;
   await bloom.finished.catch(() => {});
-  app.classList.remove('reveal'); av.classList.remove('launching');
+  app.classList.remove('reveal', 'soft'); av.classList.remove('launching');
   vinylEl.style.visibility = '';
   await wait(250); S.armUp = false; S.busy = false; syncPP();
 }
