@@ -244,8 +244,13 @@ html,body{overscroll-behavior:none;-webkit-tap-highlight-color:transparent;touch
 
 /* shelf (other albums) */
 .shelf{position:absolute;left:700px;top:648px;width:0;height:0}
-.shelf-row{position:absolute;left:0;top:0;transform:translateX(-50%);display:flex;gap:56px}
-.sh{display:flex;flex-direction:column;align-items:center;gap:12px;width:96px}
+.shelf-row{position:absolute;left:0;top:-8px;transform:translateX(-50%);width:600px;display:flex;gap:28px;padding:8px 36px 6px;
+  overflow-x:auto;overflow-y:hidden;scroll-snap-type:x proximity;scrollbar-width:none;overscroll-behavior-x:contain;-webkit-overflow-scrolling:touch;touch-action:pan-x;
+  -webkit-mask-image:linear-gradient(90deg,transparent,#000 9%,#000 91%,transparent);mask-image:linear-gradient(90deg,transparent,#000 9%,#000 91%,transparent)}
+.shelf-row::-webkit-scrollbar{display:none}
+.shelf-row.fits{-webkit-mask-image:none;mask-image:none}
+.sh{display:flex;flex-direction:column;align-items:center;gap:12px;width:96px;flex:0 0 96px;scroll-snap-align:center}
+.sh:first-child{margin-left:auto}.sh:last-child{margin-right:auto}
 .sh-disc{width:62px;height:62px;border-radius:50%;overflow:hidden;box-shadow:0 10px 18px -8px rgba(0,0,0,.5),0 0 0 1px rgba(0,0,0,.1);transition:transform .5s var(--ease),box-shadow .4s}
 .sh-disc img{width:100%;height:100%;object-fit:cover}
 .sh:hover .sh-disc{transform:translateY(-4px) scale(1.06)}
@@ -282,7 +287,7 @@ html,body{overscroll-behavior:none;-webkit-tap-highlight-color:transparent;touch
   .ly{font-size:20px;margin-bottom:14px}
   .ly-credit{left:0;width:600px;text-align:center;top:852px}
   .shelf{left:300px;top:890px}
-  .shelf-row{gap:22px}
+  .shelf-row{gap:14px;width:560px;padding:8px 28px 6px}
   .timebar{left:130px;top:985px;width:340px}
   .transport{left:197px;top:1012px}
   .album-info{max-width:none}
@@ -788,7 +793,7 @@ async function extractPalette(src){
   } catch (e) { console.warn('palette', e); return null; }
 }
 
-if (location.hash === '#debug') window.__vr = { extractPalette };
+if (location.hash === '#debug') window.__vr = { extractPalette, S, renderShelf: () => renderShelf() };
 let atmoFlip = false;
 async function applyTheme(al){
   let p = al.pal;
@@ -968,11 +973,11 @@ function addAlbum(al, front){
   const i = S.albums.findIndex(a => a.id === al.id);
   if (i >= 0) return S.albums[i];
   front ? S.albums.unshift(al) : S.albums.push(al);
-  if (S.albums.length > 24) S.albums.length = 24;
+  if (S.albums.length > 60) S.albums.length = 60;
   return al;
 }
 async function loadLibrary(){
-  const [saved, recent] = await Promise.allSettled([ api('/me/albums?limit=20'), api('/me/player/recently-played?limit=40') ]);
+  const [saved, recent] = await Promise.allSettled([ api('/me/albums?limit=50'), api('/me/player/recently-played?limit=40') ]);
   const list = [];
   if (recent.status === 'fulfilled' && recent.value) recent.value.items.forEach(it => it.track && it.track.album && list.push(normAlbum(it.track.album)));
   if (saved.status === 'fulfilled' && saved.value) saved.value.items.forEach(it => list.push(normAlbum(it.album)));
@@ -1127,9 +1132,17 @@ function renderStrip(){
   const on = strip.querySelector('.on'); if (on) on.scrollIntoView({ block:'nearest', inline:'center', behavior:'smooth' });
 }
 function renderShelf(){
-  const list = S.albums.slice(0, 6);
-  if (S.album && !list.includes(S.album)) list[list.length - 1] = S.album;
-  $('#shelfRow').innerHTML = list.map(a => `<button class="sh${a === S.album ? ' on' : ''}" data-i="${S.albums.indexOf(a)}" aria-label="Play ${esc(a.name)}"><span class="sh-disc"><img src="${esc(a.thumb || a.cover)}" alt=""></span><span class="sh-name">${esc(a.name)}</span></button>`).join('');
+  const row = $('#shelfRow'), keep = row.scrollLeft;
+  const list = S.albums.slice();
+  if (S.album && !list.includes(S.album)) list.unshift(S.album);
+  row.innerHTML = list.map(a => `<button class="sh${a === S.album ? ' on' : ''}" data-i="${S.albums.indexOf(a)}" aria-label="Play ${esc(a.name)}"><span class="sh-disc"><img src="${esc(a.thumb || a.cover)}" alt=""></span><span class="sh-name">${esc(a.name)}</span></button>`).join('');
+  row.scrollLeft = keep;
+  requestAnimationFrame(() => {
+    row.classList.toggle('fits', row.scrollWidth <= row.clientWidth + 2);
+    const on = row.querySelector('.sh.on'); if (!on) return;
+    const target = on.offsetLeft + on.offsetWidth / 2 - row.clientWidth / 2;          // centre the playing album
+    row.scrollTo({ left: Math.max(0, target), behavior: Math.abs(row.scrollLeft - target) > row.clientWidth ? 'auto' : 'smooth' });
+  });
 }
 function renderRail(){
   $('#rail').innerHTML = S.tracks.map((t, i) => `<button class="rt" role="listitem" data-i="${i}" aria-label="Play ${esc(t.name)}"><span class="rt-disc"><span class="rt-label"></span><span class="rt-no">${String(i+1).padStart(2,'0')}</span></span><span class="rt-name">${esc(t.name)}</span></button>`).join('');
@@ -1839,6 +1852,7 @@ function bind(){
   $('#backBtn').onclick = leaveToAlbum;
   $('#deckSleeve').onclick = leaveToAlbum;
   $('#strip').onclick = e => { const b = e.target.closest('.thumb'); if (b && S.albums[+b.dataset.i] !== S.album) showAlbum(S.albums[+b.dataset.i], true); };
+  $('#shelfRow').addEventListener('wheel', e => { const r = e.currentTarget; if (r.scrollWidth > r.clientWidth && Math.abs(e.deltaY) > Math.abs(e.deltaX)){ e.preventDefault(); r.scrollLeft += e.deltaY; } }, { passive:false });
   $('#shelfRow').onclick = e => { const b = e.target.closest('.sh'); if (!b) return; const al = S.albums[+b.dataset.i]; if (al === S.album) Ctl.playIndex(0); else swapRecord(al, b, 0, true); };
   $('#rail').onclick = e => { const b = e.target.closest('.rt'); if (b) Ctl.playIndex(+b.dataset.i); };
   $('#lyricsInner').onclick = e => { const p = e.target.closest('.ly'); if (p && S.lyrics.status === 'synced') Ctl.seek(S.lyrics.lines[+p.dataset.k].t); };
