@@ -87,7 +87,7 @@ img{display:block;max-width:100%}
 .conn-pill{transform:translateY(calc(-100% - 40px));opacity:0;pointer-events:none;transition:transform .55s var(--ease),opacity .4s}
 .conn-pill.drop{transform:none;opacity:.7;pointer-events:auto}
 .conn-pill.drop:hover{opacity:1}
-.hot-tr{position:absolute;top:0;right:0;width:min(180px,40vw);height:calc(env(safe-area-inset-top,0px) + 96px);z-index:39}
+.hot-tr{position:absolute;top:0;right:0;width:min(150px,34vw);height:calc(env(safe-area-inset-top,0px) + 40px);pointer-events:none}
 .conn-pill .dot{display:inline-block;width:6px;height:6px;border-radius:50%;background:#1ed760;margin-right:8px;vertical-align:1px}
 
 /* ---------- album booth ---------- */
@@ -1548,8 +1548,10 @@ function bind(){
   $('#connPill').onclick = () => openDrawer('settings');
   $('#closeDrawer').onclick = closeDrawer;
   $('#scrim').onclick = closeDrawer;
-  $('#hotTR').addEventListener('pointerdown', e => { e.preventDefault(); dropPill(); });
-  $('#hotTR').addEventListener('pointerenter', e => { if (e.pointerType === 'mouse') dropPill(); });
+  // top-right strip only watches; it never blocks taps on the tracks below it
+  const inHot = e => { const r = $('#hotTR').getBoundingClientRect(); return e.clientX >= r.left && e.clientY <= r.bottom; };
+  addEventListener('pointerdown', e => { if (inHot(e) && !e.target.closest('#connPill')) dropPill(); }, true);
+  addEventListener('pointermove', e => { if (e.pointerType === 'mouse' && inHot(e)) dropPill(); }, { passive:true });
   $('#connPill').addEventListener('pointerenter', () => dropPill());
   document.querySelectorAll('.tab').forEach(b => b.onclick = () => setTab(b.dataset.tab));
   $('#q').addEventListener('input', onSearchInput);
