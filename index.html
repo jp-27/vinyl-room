@@ -216,7 +216,7 @@ html,body{overscroll-behavior:none;-webkit-tap-highlight-color:transparent;touch
 .platter{position:absolute;left:69px;top:51px;width:250px;height:250px;border-radius:50%;
   background:radial-gradient(circle,color-mix(in srgb,var(--slab) 80%,#000) 0 60%,color-mix(in srgb,var(--slab) 70%,#000) 100%);
   box-shadow:inset 0 2px 6px rgba(0,0,0,.35)}
-.deck-vinyl{position:absolute;left:76px;top:58px;width:236px;height:236px;transition:opacity .2s}
+.deck-vinyl{position:absolute;left:76px;top:58px;width:236px;height:236px}
 .deck-vinyl.away{opacity:0}
 .arm{position:absolute;left:465px;top:41px;width:300px;height:0;transform-origin:0 0;transition:transform 1s var(--ease)}
 .arm-rod{position:absolute;left:0;top:-2.5px;width:100%;height:5px;border-radius:3px;
@@ -1273,6 +1273,8 @@ function fly(from, to, { dur = 900, easing = 'cubic-bezier(.65,0,.2,1)', rot0 = 
 function pickUp(el){ const g = geom(el); placeFlyer(g, g.a); setDiscAngle(flyer, discAngle(el)); return g; }
 function setDown(el){ setDiscAngle(el, discAngle(flyer)); }
 function setViewState(v){ S.view = v; app.dataset.view = v; }
+// hide the flying copy two frames after the real record is visible, so there is never a gap
+const handOff = () => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(() => { flyer.hidden = true; r(); })));
 
 function sleeveProxy(){
   const r = $('#sleeveBtn').getBoundingClientRect();
@@ -1324,7 +1326,7 @@ async function enterPlayer(idx = 0, startPlayback = true){
   const end = near(r + 300, to.a);
   await fly(center, to, { dur:1050, rot0:r, rot:end, lift:30, easing:'cubic-bezier(.45,0,.15,1)' });
   setDown(deck);
-  deck.classList.remove('away'); flyer.hidden = true;
+  deck.classList.remove('away'); await handOff();
   await bloom.finished.catch(() => {});
   app.classList.remove('reveal', 'soft'); av.classList.remove('launching');
   void pv.offsetWidth; bloom.cancel(); pv.style.removeProperty('--bx'); pv.style.removeProperty('--by');
@@ -1353,7 +1355,7 @@ async function leaveToAlbum(){
   await fly(from, out, { dur:1050, rot0:from.a, rot:midR, lift:30, easing:'cubic-bezier(.5,0,.2,1)' });
   await fly(out, rest, { dur:750, rot0:midR, rot:endR, easing:'cubic-bezier(.3,.6,.2,1)' });   // same size: a pure slide
   setDown(vinylEl);
-  vinylEl.style.visibility = ''; flyer.hidden = true; sp.el.remove();
+  vinylEl.style.visibility = ''; await handOff(); sp.el.remove();
   $('#albumView').classList.remove('launching'); S.busy = false;
 }
 
@@ -1370,7 +1372,7 @@ async function swapRecord(al, originEl, idx = 0, play = true){
   if (idx >= 0) setCurrent(idx);
   await fly({ ...out }, from, { dur:900, rot0:from.a - 200, rot:from.a, op0:0, op1:1, lift:30 });
   setDown(deck);
-  deck.classList.remove('away'); flyer.hidden = true;
+  deck.classList.remove('away'); await handOff();
   if (play) await Ctl.playIndex(idx >= 0 ? idx : 0);
   await wait(200); S.armUp = false; S.busy = false;
 }
