@@ -1314,10 +1314,10 @@ async function enterPlayer(idx = 0, startPlayback = true){
     // a soft, feathered glow that grows out of the disc
     pv.style.setProperty('--bx', center.cx + 'px'); pv.style.setProperty('--by', center.cy + 'px'); pv.style.setProperty('--feather', feather + 'px');
     app.classList.add('soft');
-    bloom = pv.animate([{ '--bloom': (center.d/2) + 'px' }, { '--bloom': (R + feather) + 'px' }], { duration:1400, easing:'cubic-bezier(.55,0,.3,1)' });
+    bloom = pv.animate([{ '--bloom': (center.d/2) + 'px' }, { '--bloom': (R + feather) + 'px' }], { duration:1400, easing:'cubic-bezier(.55,0,.3,1)', fill:'forwards' });
   } else {
     bloom = pv.animate([{ clipPath:`circle(${center.d/2}px at ${center.cx}px ${center.cy}px)` }, { clipPath:`circle(${R}px at ${center.cx}px ${center.cy}px)` }],
-      { duration:1150, easing:'cubic-bezier(.65,0,.25,1)' });
+      { duration:1150, easing:'cubic-bezier(.65,0,.25,1)', fill:'forwards' });
   }
   await wait(380);
   const deck = $('#deckVinyl'), to = geom(deck);
@@ -1327,6 +1327,7 @@ async function enterPlayer(idx = 0, startPlayback = true){
   deck.classList.remove('away'); flyer.hidden = true;
   await bloom.finished.catch(() => {});
   app.classList.remove('reveal', 'soft'); av.classList.remove('launching');
+  void pv.offsetWidth; bloom.cancel(); pv.style.removeProperty('--bx'); pv.style.removeProperty('--by');
   vinylEl.style.visibility = '';
   await wait(250); S.armUp = false; S.busy = false; syncPP();
 }
