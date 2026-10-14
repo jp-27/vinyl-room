@@ -209,12 +209,14 @@ html,body{overscroll-behavior:none;-webkit-tap-highlight-color:transparent;touch
 .deck-sleeve:hover{transform:rotate(-11deg) translateX(-6px)}
 .deck-sleeve img{width:100%;height:100%;object-fit:cover}
 .slab{position:absolute;left:104px;top:8px;width:540px;height:350px;transform:rotate(-3deg);border-radius:10px;
-  background:linear-gradient(180deg,color-mix(in srgb,var(--slab) 100%,#fff 8%),var(--slab));
-  border:13px solid var(--frame);box-shadow:0 40px 60px -26px rgba(0,0,0,.6),0 2px 0 rgba(255,255,255,.04) inset}
-.slab::before{content:"";position:absolute;inset:0;border-radius:2px;opacity:.5;pointer-events:none;
+  background:linear-gradient(180deg,color-mix(in srgb,color-mix(in srgb,var(--slab) 100%,#fff 8%) calc(var(--tt,1) * 100%),transparent),color-mix(in srgb,var(--slab) calc(var(--tt,1) * 100%),transparent));
+  border:13px solid color-mix(in srgb,var(--frame) calc(18% + var(--tt,1) * 82%),transparent);
+  box-shadow:0 40px 60px -26px rgba(0,0,0,calc(.6 * var(--tt,1))),0 2px 0 rgba(255,255,255,.04) inset;
+  -webkit-backdrop-filter:blur(calc((1 - var(--tt,1)) * 12px));backdrop-filter:blur(calc((1 - var(--tt,1)) * 12px))}
+.slab::before{content:"";position:absolute;inset:0;border-radius:2px;opacity:calc(.5 * var(--tt,1));pointer-events:none;
   background:repeating-linear-gradient(90deg,rgba(0,0,0,.025) 0 1px,transparent 1px 3px)}
 .platter{position:absolute;left:69px;top:51px;width:250px;height:250px;border-radius:50%;
-  background:radial-gradient(circle,color-mix(in srgb,var(--slab) 80%,#000) 0 60%,color-mix(in srgb,var(--slab) 70%,#000) 100%);
+  background:radial-gradient(circle,color-mix(in srgb,color-mix(in srgb,var(--slab) 80%,#000) calc(15% + var(--tt,1) * 85%),transparent) 0 60%,color-mix(in srgb,color-mix(in srgb,var(--slab) 70%,#000) calc(15% + var(--tt,1) * 85%),transparent) 100%);
   box-shadow:inset 0 2px 6px rgba(0,0,0,.35)}
 .deck-vinyl{position:absolute;left:76px;top:58px;width:236px;height:236px}
 .deck-vinyl.away{opacity:0}
@@ -225,7 +227,7 @@ html,body{overscroll-behavior:none;-webkit-tap-highlight-color:transparent;touch
 .pivot{position:absolute;left:447px;top:23px;width:36px;height:36px;border-radius:50%;
   background:radial-gradient(circle at 35% 30%,#fff,#bdbdbd 45%,#7a7a7a 100%);box-shadow:0 6px 10px -3px rgba(0,0,0,.5)}
 .slab-btns{position:absolute;left:20px;bottom:14px;display:flex;gap:10px}
-.slab-btns button{width:34px;height:14px;border-radius:3px;background:color-mix(in srgb,var(--slab) 80%,#000);box-shadow:inset 0 1px 2px rgba(0,0,0,.35);opacity:.8}
+.slab-btns button{width:34px;height:14px;border-radius:3px;background:color-mix(in srgb,color-mix(in srgb,var(--slab) 80%,#000) calc(30% + var(--tt,1) * 70%),transparent);box-shadow:inset 0 1px 2px rgba(0,0,0,.35);opacity:.8}
 .slab-btns button:hover{opacity:1}
 
 /* lyrics */
@@ -253,8 +255,9 @@ html,body{overscroll-behavior:none;-webkit-tap-highlight-color:transparent;touch
 /* transport */
 .transport{position:absolute;left:1118px;top:664px;display:flex;align-items:center;gap:20px}
 .pp{width:56px;height:56px;border-radius:50%;display:grid;place-items:center;
-  background:radial-gradient(circle at 40% 30%,color-mix(in srgb,var(--room) 85%,#fff),var(--room));
-  box-shadow:0 10px 20px -8px rgba(0,0,0,.45),inset 0 0 0 1px color-mix(in srgb,var(--ink) 12%,transparent)}
+  background:radial-gradient(circle at 40% 30%,color-mix(in srgb,color-mix(in srgb,var(--room) 85%,#fff) calc(var(--tt,1) * 100%),transparent),color-mix(in srgb,var(--room) calc(var(--tt,1) * 100%),transparent));
+  box-shadow:0 10px 20px -8px rgba(0,0,0,calc(.45 * var(--tt,1))),inset 0 0 0 1px color-mix(in srgb,var(--ink) calc(12% + (1 - var(--tt,1)) * 28%),transparent);
+  -webkit-backdrop-filter:blur(calc((1 - var(--tt,1)) * 10px));backdrop-filter:blur(calc((1 - var(--tt,1)) * 10px))}
 .pp svg{width:18px;height:18px;fill:var(--ink)}
 .vol{-webkit-appearance:none;appearance:none;width:130px;height:3px;border-radius:3px;background:linear-gradient(90deg,var(--ink) var(--v,70%),color-mix(in srgb,var(--ink) 20%,transparent) var(--v,70%));outline-offset:6px}
 .vol::-webkit-slider-thumb{-webkit-appearance:none;width:15px;height:15px;border-radius:50%;background:var(--room);box-shadow:0 0 0 1.5px var(--ink),0 3px 6px rgba(0,0,0,.35)}
@@ -394,7 +397,7 @@ html,body{overscroll-behavior:none;-webkit-tap-highlight-color:transparent;touch
 .seg{display:inline-flex;border:1px solid rgba(255,255,255,.12);border-radius:99px;padding:3px}
 .seg button{padding:8px 13px;border-radius:99px;font:500 12.5px/1 var(--f-display);color:var(--booth-dim)}
 .seg button[aria-pressed="true"]{background:rgba(255,255,255,.12);color:var(--booth-ink)}
-.range{display:grid;grid-template-columns:70px 1fr 40px;align-items:center;gap:12px;font:400 13px/1 var(--f-display);color:var(--booth-dim);margin-top:12px}
+.range{display:grid;grid-template-columns:88px 1fr 40px;align-items:center;gap:12px;font:400 13px/1 var(--f-display);color:var(--booth-dim);margin-top:12px}
 .range input{width:100%;accent-color:var(--booth-ink)}
 .range output{text-align:right;font-variant-numeric:tabular-nums}
 .field{display:grid;gap:8px}
@@ -630,6 +633,8 @@ html,body{overscroll-behavior:none;-webkit-tap-highlight-color:transparent;touch
           <div class="seg" id="bgWhere"><button data-w="both" aria-pressed="true">Both</button><button data-w="album" aria-pressed="false">Sleeve</button><button data-w="room" aria-pressed="false">Turntable</button></div>
           <div class="range"><label for="bgDim">Darken</label><input id="bgDim" type="range" min="0" max="85" value="35"><output id="bgDimOut">35%</output></div>
           <div class="range"><label for="bgBlur">Blur</label><input id="bgBlur" type="range" min="0" max="40" value="0"><output id="bgBlurOut">0</output></div>
+          <div class="range"><label for="ttClear" title="Turntable and play button">See-through</label><input id="ttClear" type="range" min="0" max="90" value="0" aria-label="Turntable and play button see-through"><output id="ttClearOut">0%</output></div>
+          <div class="status" style="margin-top:6px">See-through applies to the turntable and the play button together.</div>
           <button class="btn" id="bgReset" style="margin-top:16px">Back to default</button>
         </div>
       </div>
@@ -1613,7 +1618,7 @@ function renderLib(){
 
 /* ---- custom background ---- */
 const BG = (() => { try { return JSON.parse(store.get('vr.bg') || 'null') || {}; } catch { return {}; } })();
-BG.where ||= 'both'; BG.dim ??= 35; BG.blur ??= 0;
+BG.where ||= 'both'; BG.dim ??= 35; BG.blur ??= 0; BG.clear ??= 0;
 BG.saved ||= (BG.recent || []).slice(); delete BG.recent;
 if (BG.url && !BG.saved.includes(BG.url)) BG.saved.unshift(BG.url);
 function saveBg(){ store.set('vr.bg', JSON.stringify(BG)); }
@@ -1687,6 +1692,7 @@ function applyBg(){
   const src = on ? srcOf(BG.url) : '';
   if (src) st.setProperty('--custom-img', cssUrl(src)); else st.removeProperty('--custom-img');
   st.setProperty('--custom-dim', (BG.dim/100).toFixed(2)); st.setProperty('--custom-blur', BG.blur + 'px');
+  st.setProperty('--tt', (1 - BG.clear/100).toFixed(2));
   app.dataset.bgAlbum = on && BG.where !== 'room' ? '1' : '0';
   app.dataset.bgRoom  = on && BG.where !== 'album' ? '1' : '0';
 }
@@ -1695,6 +1701,7 @@ function renderBgUI(){
   document.querySelectorAll('#bgWhere button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.w === BG.where)));
   $('#bgDim').value = BG.dim; $('#bgDimOut').textContent = BG.dim + '%';
   $('#bgBlur').value = BG.blur; $('#bgBlurOut').textContent = BG.blur;
+  $('#ttClear').value = BG.clear; $('#ttClearOut').textContent = BG.clear + '%';
   const TICK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M5 12l5 5 9-10"/></svg>';
   const X = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="M6 6l12 12M18 6L6 18"/></svg>';
   $('#bgSaved').innerHTML =
@@ -1808,7 +1815,8 @@ function bind(){
   $('#bgWhere').onclick = e => { const b = e.target.closest('button'); if (b){ BG.where = b.dataset.w; saveBg(); applyBg(); renderBgUI(); } };
   $('#bgDim').oninput = e => { BG.dim = +e.target.value; $('#bgDimOut').textContent = BG.dim + '%'; applyBg(); saveBg(); };
   $('#bgBlur').oninput = e => { BG.blur = +e.target.value; $('#bgBlurOut').textContent = BG.blur; applyBg(); saveBg(); };
-  $('#bgReset').onclick = () => { BG.url = ''; BG.dim = 35; BG.blur = 0; BG.where = 'both'; saveBg(); applyBg(); renderBgUI(); toast('Back to the default album colours. Your saved backgrounds are still here.'); };
+  $('#ttClear').oninput = e => { BG.clear = +e.target.value; $('#ttClearOut').textContent = BG.clear + '%'; applyBg(); saveBg(); };
+  $('#bgReset').onclick = () => { BG.url = ''; BG.dim = 35; BG.blur = 0; BG.clear = 0; BG.where = 'both'; saveBg(); applyBg(); renderBgUI(); toast('Back to the default album colours. Your saved backgrounds are still here.'); };
   $('#bgFile').onchange = e => { const fs = e.target.files; if (fs && fs.length) addUploads(fs); e.target.value = ''; };
   const dz = $('#bgDrop');
   ['dragenter','dragover'].forEach(ev => dz.addEventListener(ev, e => { e.preventDefault(); dz.classList.add('over'); }));
