@@ -31,6 +31,13 @@ Without connecting, it runs in preview mode with four sample records.
 - Lyrics come from LRCLIB (free, no key). Not every track has synced lyrics.
 - "React to room sound" in the menu uses the mic so the glow pulses with the music. Spotify no longer gives new apps per-song beat data, and its in-browser audio is DRM-protected, so the mic is the only way to get a real signal.
 
+## Using it
+
+- **Menu (☰):** drops down from the top with search, Your Library (saved albums, recently played, liked songs), Background and Settings.
+- **Background:** paste a direct image or GIF link, choose Sleeve, Turntable or Both, and adjust darken and blur.
+- **Spotify button:** hidden until you tap or hover near the top-right corner.
+- **Seeking:** press the progress bar to open the big slider, drag to scrub with a lyric preview, release to jump.
+
 ## Host it online (optional)
 
 Put `index.html` on any HTTPS host (GitHub Pages, Netlify, Vercel), add that page's URL as a second redirect URI in the Spotify dashboard, and connect from there.
