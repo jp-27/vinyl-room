@@ -730,6 +730,8 @@ html,body{overscroll-behavior:none;-webkit-tap-highlight-color:transparent;touch
     <h3>Sound &amp; start</h3>
     <div class="toggle"><div>Sound effects<small>Clicks for scrolling, selecting, menus and going back.</small></div><button class="switch" id="sfxSwitch" role="switch" aria-checked="true" aria-label="Sound effects"></button></div>
     <div class="range" style="margin-top:14px"><label for="sfxVol">Volume</label><input id="sfxVol" type="range" min="0" max="100" value="80"><output id="sfxVolOut">80%</output></div>
+    <div class="range" style="margin-top:12px"><label for="sfxDuck" title="Scroll and selection sounds while a song is playing">With music</label><input id="sfxDuck" type="range" min="0" max="100" value="35" aria-label="Scroll and selection sound level while music plays"><output id="sfxDuckOut">35%</output></div>
+    <div class="status" style="margin-top:6px">Scroll and selection sounds play at this level while a song is playing.</div>
     <div class="toggle" style="margin-top:16px"><div>Intro screen<small>Plays the start sound and fades the app in.</small></div><button class="switch" id="introSwitch" role="switch" aria-checked="true" aria-label="Intro screen"></button></div>
     <div class="toggle" style="margin-top:16px"><div>Start in full screen<small>On computers and Android. iPhone home-screen apps are already full screen.</small></div><button class="switch" id="fsSwitch" role="switch" aria-checked="true" aria-label="Start in full screen"></button></div>
   </div>
@@ -772,7 +774,7 @@ function toast(msg, ms = 4200){
 }
 
 /* ================= preferences ================= */
-const PREFS = Object.assign({ sfx:true, vol:.8, intro:true, fs:true }, (() => { try { return JSON.parse(store.get('vr.prefs') || '{}'); } catch { return {}; } })());
+const PREFS = Object.assign({ sfx:true, vol:.8, duck:.35, intro:true, fs:true }, (() => { try { return JSON.parse(store.get('vr.prefs') || '{}'); } catch { return {}; } })());
 const savePrefs = () => store.set('vr.prefs', JSON.stringify(PREFS));
 
 /* ================= sound effects ================= */
@@ -795,7 +797,10 @@ const SFX = (() => {
     if (!ctx) return;
     if (ctx.state === 'suspended') ctx.resume();
     const t = performance.now(); if (name === 'scroll' && t - (last[name] || 0) < 55) return; last[name] = t;
-    const go = b => { const src = ctx.createBufferSource(); src.buffer = b; const g = ctx.createGain(); g.gain.value = gain[name] || 1; src.connect(g); g.connect(master); src.start(); };
+    // quieter while a song is playing: scroll and selection sounds duck under the music
+    const playing = typeof S !== 'undefined' && S.pb && S.pb.playing;
+    const duck = playing ? ({ scroll:PREFS.duck, select:PREFS.duck, menu:Math.min(1, PREFS.duck * 1.4) }[name] ?? 1) : 1;
+    const go = b => { const src = ctx.createBufferSource(); src.buffer = b; const g = ctx.createGain(); g.gain.value = (gain[name] || 1) * duck; src.connect(g); g.connect(master); src.start(); };
     if (buf[name]) go(buf[name]);
     else raw[name].then(ab => ab && ctx.decodeAudioData(ab.slice(0)).then(b => { buf[name] = b; go(b); })).catch(() => {});
   }
@@ -1998,6 +2003,9 @@ function bind(){
   $('#sfxVol').value = Math.round(PREFS.vol * 100); $('#sfxVolOut').textContent = Math.round(PREFS.vol * 100) + '%';
   $('#sfxVol').oninput = e => { PREFS.vol = e.target.value / 100; $('#sfxVolOut').textContent = e.target.value + '%'; SFX.setVol(PREFS.vol); savePrefs(); };
   $('#sfxVol').onchange = () => sfx('select');
+  $('#sfxDuck').value = Math.round(PREFS.duck * 100); $('#sfxDuckOut').textContent = Math.round(PREFS.duck * 100) + '%';
+  $('#sfxDuck').oninput = e => { PREFS.duck = e.target.value / 100; $('#sfxDuckOut').textContent = e.target.value + '%'; savePrefs(); };
+  $('#sfxDuck').onchange = () => sfx('select');
   bindScrub(); applyBg();
   resolveLocalBgs().then(() => { applyBg(); if (drawerTab === 'look') renderBgUI(); }).catch(() => {});
   $('#connectBtn').onclick = () => { sfx('select'); login(); };
