@@ -55,6 +55,9 @@ body{font:400 14px/1.4 var(--f-ui);-webkit-font-smoothing:antialiased}
 button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:pointer}
 button:focus-visible,input:focus-visible,a:focus-visible{outline:2px solid currentColor;outline-offset:3px;border-radius:4px}
 [hidden]{display:none!important}
+html,body{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+input,textarea,code,[contenteditable]{-webkit-user-select:text;user-select:text;-webkit-touch-callout:default}
+img,a,button{-webkit-user-drag:none;user-drag:none}
 @media (display-mode:standalone){.topbar{padding-top:calc(env(safe-area-inset-top,0px) + 10px)}.back-btn,.conn-pill{top:calc(env(safe-area-inset-top,0px) + 12px)}}
 #app.notrans{transition:none!important}
 img{display:block;max-width:100%}
@@ -834,6 +837,12 @@ function setupIntro(){
 // without the intro: unlock sounds and go full screen on the first tap anywhere
 addEventListener('pointerdown', () => { SFX.unlock(); if (!document.getElementById('intro')) goFullscreen(); }, { capture:true, once:true });
 addEventListener('keydown', () => SFX.unlock(), { capture:true, once:true });
+// behave like an app, not a web page: no selecting text, right-click menus or dragging pictures
+const editable = t => t && t.closest && t.closest('input,textarea,code,[contenteditable]');
+addEventListener('selectstart', e => { if (!editable(e.target)) e.preventDefault(); });
+addEventListener('contextmenu', e => { if (!editable(e.target)) e.preventDefault(); });
+addEventListener('dragstart', e => { if (!editable(e.target)) e.preventDefault(); });
+addEventListener('dblclick', e => { if (!editable(e.target)) { e.preventDefault(); const sel = getSelection && getSelection(); if (sel && sel.rangeCount && !editable(sel.anchorNode && sel.anchorNode.parentElement)) sel.removeAllRanges(); } });
 
 /* ================= state ================= */
 const S = {
